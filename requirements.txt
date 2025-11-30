@@ -1,0 +1,6 @@
+streamlit==1.50.0
+pandas==2.3.3
+python-dotenv==1.2.1
+langchain-google-genai==2.1.12
+langchain-core==0.3.80
+langgraph==0.6.11

@@ -288,13 +288,13 @@ st.markdown("""
     }
     .mf-agent-wrap {
         width: 100%;
-        text-align: left;  /* 讓 Agent 氣泡靠右對齊 */
+        text-align: right;  /* 讓 Agent 氣泡整體靠右對齊 */
     }
     .mf-agent {
         background-color: #e8f5e9;  /* 淡綠 */
         color: #1b5e20;
         display: inline-block;      /* 配合 wrap 做靠右排列 */
-        text-align: right;          /* 讓文字也在氣泡內靠右對齊 */
+        text-align: left;            /* 框內文字靠左對齊 */
     }
 
     /* Supervisor Chain-of-Thought 卡片（灰色） */

@@ -1,5 +1,5 @@
 """
-Mind Flow Test - 終端機測試腳本
+Momentum Test - 終端機測試腳本
 用於快速測試大腦邏輯，無需啟動 Streamlit 介面
 """
 import os
@@ -52,7 +52,7 @@ class ConversationLogger:
         
         # 寫入開始標記
         self.write_separator()
-        self.write(f"🧠 Mind Flow 對話記錄")
+        self.write(f"🧠 Momentum 對話記錄")
         self.write(f"開始時間: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         self.write_separator()
         self.file.flush()
@@ -96,7 +96,7 @@ def main():
                 logger.write("❌ 需要 API Key 才能運行")
                 return
         
-        logger.write("🧠 Mind Flow - 終端測試模式")
+        logger.write("🧠 Momentum - 終端測試模式")
         logger.write_separator()
         logger.write("輸入 'quit' 或 'exit' 退出\n")
         
@@ -159,7 +159,7 @@ def main():
             messages.append(HumanMessage(content=user_input))
             
             # 執行大腦
-            logger.write("\n🤔 Mind Flow 團隊正在協作中...\n")
+            logger.write("\n🤔 Momentum 團隊正在協作中...\n")
             try:
                 result = app.invoke({"messages": messages})
                 

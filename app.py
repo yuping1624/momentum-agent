@@ -1,5 +1,5 @@
 """
-Mind Flow App - Streamlit Interface
+Momentum App - Streamlit Interface
 Only handles display and user interaction, core logic is in brain.py
 """
 import streamlit as st
@@ -378,7 +378,7 @@ def calculate_dashboard_metrics():
 
 
 load_dotenv()
-st.set_page_config(page_title="Mind Flow", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="Momentum", page_icon="🧠", layout="wide")
 
 # Initialize journal database (Session State) - Load from CSV or create new
 if "journal_db" not in st.session_state:
@@ -533,7 +533,7 @@ with st.sidebar:
     )
 
 if not api_key:
-    st.warning("Please enter API Key first to start Mind Flow.")
+    st.warning("Please enter API Key first to start Momentum.")
     st.stop()
 
 # --- 3. Initialize Brain ---
@@ -572,8 +572,8 @@ if "mind_flow_app" not in st.session_state:
 
 # --- 4. User Interface (UX) ---
 
-st.title("Mind Flow")
-st.caption("From Anxiety to Action: Your AI Companion for Executive Function.")
+st.title("Momentum")
+st.caption("Turn 12-Week Goals into Daily Systems | Your AI Companion for Executive Function.")
 
 # Create main tabs: Chat / Dashboard
 tab_chat, tab_dashboard = st.tabs(["💬 Chat", "📊 Dashboard"])
@@ -655,11 +655,11 @@ with tab_chat:
                 # Reply directly with fixed template, don't enter brain/don't call any tools
                 safety_ai_message = AIMessage(content=SAFETY_MESSAGE)
                 st.session_state.messages.append(safety_ai_message)
-                st.warning("⚠️ Safety guardrail mechanism triggered, this conversation round will not enter Mind Flow brain.")
+                st.warning("⚠️ Safety guardrail mechanism triggered, this conversation round will not enter Momentum brain.")
             else:
                 # 2. Execute Agent (use lightweight prompt, not full-page blurry spinner)
                 status = st.empty()
-                status.markdown("⏳ Mind Flow team is collaborating...")
+                status.markdown("⏳ Momentum team is collaborating...")
                 result = st.session_state.mind_flow_app.invoke({"messages": st.session_state.messages})
                 response = result["messages"][-1]
                 status.empty()

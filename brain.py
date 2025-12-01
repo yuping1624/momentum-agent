@@ -1,5 +1,5 @@
 """
-Mind Flow Brain - Core Logic
+Momentum Brain - Core Logic
 Contains all Agent Prompts, Tools, and Graph logic
 """
 import datetime
@@ -652,7 +652,7 @@ Remember: Your role is to help them execute, not to replan (unless they ask).
     
     # Create appropriate user message based on plan_state status
     if not vision or vision is None:
-        user_message = "User has just logged in. There is NO goal set yet. Introduce yourself as Mind Flow and ask the user to define their 12-week goal."
+        user_message = "User has just logged in. There is NO goal set yet. Introduce yourself as Momentum and ask the user to define their 12-week goal."
     elif not system or system is None:
         user_message = f"User has a Vision: '{vision}'. Now help them establish their daily system/habit."
     else:
@@ -674,7 +674,7 @@ Remember: Your role is to help them execute, not to replan (unless they ask).
 
 def create_mind_flow_brain(api_key: str, model: str = "gemini-2.0-flash", update_callback=None, plan_callback=None):
     """
-    Create Mind Flow brain (LangGraph application)
+    Create Momentum brain (LangGraph application)
     
     Args:
         api_key: Google API Key

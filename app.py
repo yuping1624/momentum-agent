@@ -41,6 +41,38 @@ SAFETY_MESSAGE = (
 )
 
 
+# --- RLHF 回饋紀錄函數 ---
+def log_feedback(user_input: str, agent_response: str, rating: int):
+    """
+    將使用者回饋記錄到 CSV 檔案。
+    rating: 1 = 👍, -1 = 👎
+    """
+    os.makedirs("data", exist_ok=True)
+    feedback_path = os.path.join("data", "feedback_ratings.csv")
+    # 清理文本，避免在 CSV 中產生多行；將換行轉成可讀的 "\n"
+    def _clean(text: str) -> str:
+        if not isinstance(text, str):
+            return str(text)
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        return text.replace("\n", "\\n")
+
+    new_record = {
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "user_input": _clean(user_input),
+        "agent_response": _clean(agent_response),
+        "rating": rating,
+    }
+    if os.path.exists(feedback_path) and os.path.getsize(feedback_path) > 0:
+        try:
+            df_existing = pd.read_csv(feedback_path)
+        except pd.errors.EmptyDataError:
+            df_existing = pd.DataFrame(columns=["timestamp", "user_input", "agent_response", "rating"])
+        df = pd.concat([df_existing, pd.DataFrame([new_record])], ignore_index=True)
+    else:
+        df = pd.DataFrame([new_record])
+    df.to_csv(feedback_path, index=False, encoding="utf-8")
+
+
 # --- 共用訊息 / 調試渲染函數 ---
 def render_message(msg):
     """根據訊息角色，將 User / Agent 分別顯示在左右兩側，並加上色塊。"""
@@ -104,9 +136,12 @@ def render_supervisor_cot(result):
     )
 
 
-# --- 1. 初始化與設定 ---
 load_dotenv()
 st.set_page_config(page_title="Mind Flow", page_icon="🧠", layout="wide")
+
+# 初始化日記資料庫 (Session State 模擬) - 提供儀表板使用
+if "journal_db" not in st.session_state:
+    st.session_state.journal_db = pd.DataFrame(columns=["Timestamp", "Mood", "Energy", "Note"])
 
 # CSS 優化 (讓介面更乾淨 + 訊息色塊樣式)
 st.markdown("""
@@ -215,21 +250,6 @@ with st.sidebar:
     else:
         st.warning("尚未建立系統。請與 Strategist 互動以設定你的 12 週願景！")
 
-    st.divider()
-    
-    # 初始化資料庫 (Session State 模擬)
-    if "journal_db" not in st.session_state:
-        st.session_state.journal_db = pd.DataFrame(columns=["Timestamp", "Mood", "Energy", "Note"])
-
-    st.subheader("📊 Flow Journal")
-    if not st.session_state.journal_db.empty:
-        # 顯示最近 5 筆
-        st.dataframe(st.session_state.journal_db.tail(5), hide_index=True)
-        # 簡單趨勢圖
-        st.line_chart(st.session_state.journal_db["Energy"])
-    else:
-        st.info("尚無數據，完成一次行動後會自動記錄。")
-
 if not api_key:
     st.warning("請先輸入 API Key 才能啟動 Mind Flow。")
     st.stop()
@@ -259,106 +279,175 @@ if "mind_flow_app" not in st.session_state:
 
 # --- 4. 使用者介面 (UX) ---
 
-st.title("🧠 Mind Flow")
+st.title("Mind Flow")
 st.caption("From Anxiety to Action: Your AI Companion for Executive Function.")
 
-# --- 快速建議按鈕（放在主畫面最上方，接近標題） ---
-suggestions = ["🎯 幫我拆解目標", "😫 我現在好焦慮", "🐢 我想動但動不了", "✅ 我完成了！幫我紀錄"]
-cols = st.columns(4)
-selected_prompt = None
-for i, suggestion in enumerate(suggestions):
-    with cols[i]:
-        if st.button(suggestion):
-            selected_prompt = suggestion
+# 建立主分頁：對話 / 儀表板
+tab_chat, tab_dashboard = st.tabs(["💬 Chat", "📊 Dashboard"])
 
-# 初始化對話
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-    
-    # 根據 user_profile 的狀態決定使用哪個 Agent
-    from brain import get_strategist_greeting, get_returning_user_greeting
-    # 從 JSON 文件加載用戶配置文件
-    user_profile = load_user_profile()
-    
-    # 檢查是否已完成 onboarding（system 已設置）
-    if user_profile.get("system"):
-        # 老用戶：直接使用 Starter（啟動）或 Healer（關心）
-        # 預設使用 Starter（啟動模式），如果需要 Healer 可以改為 "healer"
-        with st.spinner("🚀 Starter 正在準備問候（老用戶模式）..."):
-            greeting_response = get_returning_user_greeting(
-                api_key=api_key, 
-                model="gemini-2.0-flash",
-                plan_state=user_profile,
-                agent_type="starter"  # 或 "healer" 用於關心模式
-            )
-    else:
-        # 新用戶或未完成 onboarding：使用 Strategist
-        with st.spinner("🧠 Strategist 正在準備問候..."):
-            greeting_response = get_strategist_greeting(
-                api_key=api_key, 
-                model="gemini-2.0-flash",
-                plan_state=user_profile
-            )
-    
-    st.session_state.messages.append(greeting_response)
+with tab_chat:
+    # --- 快速建議按鈕（放在 Chat 分頁頂部） ---
+    suggestions = ["🎯 幫我拆解目標", "😫 我現在好焦慮", "🐢 我想動但動不了", "✅ 我完成了！幫我紀錄"]
+    cols = st.columns(4)
+    selected_prompt = None
+    for i, suggestion in enumerate(suggestions):
+        with cols[i]:
+            if st.button(suggestion):
+                selected_prompt = suggestion
 
-# --- 輸入區（放在主畫面最下方） ---
+    # 建立一個容器用來承載歷史訊息，確保它始終顯示在輸入框上方
+    history_container = st.container()
 
-# 先取得使用者輸入
-user_input = st.chat_input("告訴我你現在的狀態...")
-
-# 決定本輪實際要送給 Agent 的文字：優先使用 chat_input，其次是上方快速按鈕
-prompt = user_input or selected_prompt
-
-# 輸入處理：只更新狀態（messages、sidebar 等），真正的顯示統一在下方歷史訊息迴圈處理
-if prompt:
-    # 1. 加入 User Message
-    user_msg = HumanMessage(content=prompt)
-    st.session_state.messages.append(user_msg)
-
-    # 1.5 安全檢查：自我傷害／生命危險關鍵字（硬守門）
-    lowered = prompt.lower()
-    if any(keyword in lowered for keyword in SAFETY_KEYWORDS):
-        # 直接用固定模板回覆，不進入大腦／不調用任何工具
-        safety_ai_message = AIMessage(content=SAFETY_MESSAGE)
-        st.session_state.messages.append(safety_ai_message)
-        st.warning("⚠️ 安全守門機制已觸發，此輪對話不會進入 Mind Flow 大腦。")
-    else:
-        # 2. 執行 Agent（使用輕量提示，而不是整頁模糊的 spinner）
-        status = st.empty()
-        status.markdown("⏳ Mind Flow 團隊正在協作中...")
-        result = st.session_state.mind_flow_app.invoke({"messages": st.session_state.messages})
-        response = result["messages"][-1]
-        status.empty()
+    # 初始化對話
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
         
-        # 3. 加入 AI Response
-        st.session_state.messages.append(response)
+        # 根據 user_profile 的狀態決定使用哪個 Agent
+        from brain import get_strategist_greeting, get_returning_user_greeting
+        # 從 JSON 文件加載用戶配置文件
+        user_profile = load_user_profile()
+        
+        # 檢查是否已完成 onboarding（system 已設置）
+        if user_profile.get("system"):
+            # 老用戶：直接使用 Starter（啟動）或 Healer（關心）
+            # 預設使用 Starter（啟動模式），如果需要 Healer 可以改為 "healer"
+            with st.spinner("🚀 Starter 正在準備問候（老用戶模式）..."):
+                greeting_response = get_returning_user_greeting(
+                    api_key=api_key, 
+                    model="gemini-2.0-flash",
+                    plan_state=user_profile,
+                    agent_type="starter"  # 或 "healer" 用於關心模式
+                )
+        else:
+            # 新用戶或未完成 onboarding：使用 Strategist
+            with st.spinner("🧠 Strategist 正在準備問候..."):
+                greeting_response = get_strategist_greeting(
+                    api_key=api_key, 
+                    model="gemini-2.0-flash",
+                    plan_state=user_profile
+                )
+        
+        st.session_state.messages.append(greeting_response)
 
-        # 3.5 如果有 Supervisor 推理結果，這一輪更新後在下方一起渲染
-        st.session_state.last_supervisor_result = result
+    # --- 輸入區（Chat 分頁底部） ---
 
-        # 4. 如果有 Tool Call，顯示成功提示
-        has_set_full_plan = False
-        if hasattr(response, 'tool_calls') and response.tool_calls:
-            # 檢查是哪種工具被調用
-            for tool_call in response.tool_calls:
-                tool_name = getattr(tool_call, 'name', None) or (tool_call.get('name') if isinstance(tool_call, dict) else None)
-                if tool_name == "save_journal_entry":
-                    st.toast("✨ 日記已寫入資料庫！查看側邊欄數據。", icon="✅")
-                elif tool_name == "set_full_plan":
-                    has_set_full_plan = True
-                    st.toast("✨ 計劃已建立！查看側邊欄導航系統。", icon="🎯")
-        # 5. 只要本輪任一工具調用了 set_full_plan（無論 demo 或一般對話），立刻 rerun 更新側邊欄
-        if has_set_full_plan:
-            st.rerun()
+    # 先取得使用者輸入
+    user_input = st.chat_input("告訴我你現在的狀態...")
 
-# 顯示歷史訊息（包含本輪新增的 user/agent）
-for idx, msg in enumerate(st.session_state.messages):
-    render_message(msg)
-    # 在每個 Agent 回覆之後，如果有對應的 Supervisor 推理結果，就顯示在該回覆底下
-    if (
-        isinstance(msg, AIMessage)
-        and "last_supervisor_result" in st.session_state
-        and idx == len(st.session_state.messages) - 1  # 目前只對最後一輪顯示 CoT
-    ):
-        render_supervisor_cot(st.session_state.last_supervisor_result)
+    # 決定本輪實際要送給 Agent 的文字：優先使用 chat_input，其次是上方快速按鈕
+    prompt = user_input or selected_prompt
+
+    # 輸入處理：只更新狀態（messages、sidebar 等）
+    if prompt:
+        # 1. 加入 User Message
+        user_msg = HumanMessage(content=prompt)
+        st.session_state.messages.append(user_msg)
+
+        # 1.5 安全檢查：自我傷害／生命危險關鍵字（硬守門）
+        lowered = prompt.lower()
+        if any(keyword in lowered for keyword in SAFETY_KEYWORDS):
+            # 直接用固定模板回覆，不進入大腦／不調用任何工具
+            safety_ai_message = AIMessage(content=SAFETY_MESSAGE)
+            st.session_state.messages.append(safety_ai_message)
+            st.warning("⚠️ 安全守門機制已觸發，此輪對話不會進入 Mind Flow 大腦。")
+        else:
+            # 2. 執行 Agent（使用輕量提示，而不是整頁模糊的 spinner）
+            status = st.empty()
+            status.markdown("⏳ Mind Flow 團隊正在協作中...")
+            result = st.session_state.mind_flow_app.invoke({"messages": st.session_state.messages})
+            response = result["messages"][-1]
+            status.empty()
+            
+            # 3. 加入 AI Response
+            st.session_state.messages.append(response)
+
+            # 3.5 記錄本輪 Supervisor 推理結果，供渲染時對應到這個回覆
+            if "cot_history" not in st.session_state:
+                st.session_state.cot_history = []
+            # 目前這個 AI 回覆的索引就是最後一個
+            ai_index = len(st.session_state.messages) - 1
+            st.session_state.cot_history.append({"idx": ai_index, "result": result})
+            
+            # 4. 如果有 Tool Call，顯示成功提示
+            has_set_full_plan = False
+            if hasattr(response, 'tool_calls') and response.tool_calls:
+                # 檢查是哪種工具被調用
+                for tool_call in response.tool_calls:
+                    tool_name = getattr(tool_call, 'name', None) or (tool_call.get('name') if isinstance(tool_call, dict) else None)
+                    if tool_name == "save_journal_entry":
+                        st.toast("✨ 日記已寫入資料庫！查看側邊欄數據。", icon="✅")
+                    elif tool_name == "set_full_plan":
+                        has_set_full_plan = True
+                        st.toast("✨ 計劃已建立！查看側邊欄導航系統。", icon="🎯")
+            # 5. 只要本輪任一工具調用了 set_full_plan（無論 demo 或一般對話），立刻 rerun 更新側邊欄
+            if has_set_full_plan:
+                st.rerun()
+
+    # 在 history_container 中渲染歷史訊息與 RLHF 回饋，確保它們總是在輸入框上方
+    with history_container:
+        # 顯示歷史訊息（包含本輪新增的 user/agent），並記錄最後一組 User / Agent 對
+        last_user_msg = None
+        last_agent_msg = None
+        for idx, msg in enumerate(st.session_state.messages):
+            if isinstance(msg, HumanMessage):
+                last_user_msg = msg
+                render_message(msg)
+            elif isinstance(msg, AIMessage):
+                last_agent_msg = msg
+                # 先顯示對應這個 idx 的 Supervisor 推理結果（灰色方塊在回覆上方）
+                if "cot_history" in st.session_state:
+                    for entry in st.session_state.cot_history:
+                        if entry.get("idx") == idx:
+                            render_supervisor_cot(entry.get("result"))
+                            break
+                # 再顯示 Agent 回覆本身
+                render_message(msg)
+            else:
+                # 其他類型訊息（保險起見）
+                render_message(msg)
+
+        # RLHF 回饋按鈕（只對最後一個 Agent 回覆顯示，貼在 Agent 區塊右下角）
+        if last_user_msg is not None and last_agent_msg is not None:
+            # 依據當前最後一個 Agent 訊息的 index，維護對應的 feedback 狀態，避免跨輪殘留
+            if "feedback_status" not in st.session_state:
+                st.session_state.feedback_status = {}
+            if "last_agent_index" not in st.session_state:
+                st.session_state.last_agent_index = None
+
+            # 如果這一輪的最後一個 Agent index 跟前一輪不同，重置這一輪的狀態
+            current_agent_index = len(st.session_state.messages) - 1
+            if st.session_state.last_agent_index != current_agent_index:
+                st.session_state.last_agent_index = current_agent_index
+                st.session_state.feedback_status[current_agent_index] = None
+
+            current_status = st.session_state.feedback_status.get(current_agent_index)
+
+            # 佈局：三欄，前兩欄留白，最後兩欄是緊鄰的讚 / 倒讚按鈕（更靠近在一起）
+            spacer, col_up, col_down = st.columns([6, 1, 1])
+            with col_up:
+                if st.button("👍", key=f"feedback_up_{current_agent_index}"):
+                    log_feedback(last_user_msg.content, last_agent_msg.content, rating=1)
+                    st.session_state.feedback_status[current_agent_index] = "up"
+                    current_status = "up"
+            with col_down:
+                if st.button("👎", key=f"feedback_down_{current_agent_index}"):
+                    log_feedback(last_user_msg.content, last_agent_msg.content, rating=-1)
+                    st.session_state.feedback_status[current_agent_index] = "down"
+                    current_status = "down"
+
+            # 小提示文字緊貼在按鈕下方，只針對這一輪的 Agent 顯示
+            if current_status == "up":
+                st.caption("🙏 已記錄這次回覆為「有幫助」")
+            elif current_status == "down":
+                st.caption("📥 已記錄這次回覆為「不太好」")
+
+with tab_dashboard:
+    st.subheader("📊 Flow Journal")
+    if not st.session_state.journal_db.empty:
+        st.write("最近 20 筆日記記錄：")
+        st.dataframe(st.session_state.journal_db.tail(20), hide_index=True)
+        st.write("能量指數趨勢：")
+        st.line_chart(st.session_state.journal_db.set_index("Timestamp")["Energy"])
+    else:
+        st.info("尚無日記數據，完成一次行動後會自動記錄。")
+

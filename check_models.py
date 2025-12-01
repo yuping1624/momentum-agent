@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # If .env cannot be read, paste the key directly in the quotes below
-api_key = os.getenv("GOOGLE_API_KEY") 
+api_key = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=api_key)
 
 print("Querying available models...")

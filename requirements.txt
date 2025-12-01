@@ -5,3 +5,4 @@ langchain-google-genai==2.1.12
 langchain-core==0.3.80
 langgraph==0.6.11
 altair==5.0.0
+flake8==7.3.0

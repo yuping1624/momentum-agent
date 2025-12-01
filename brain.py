@@ -5,14 +5,14 @@ Mind Flow Brain - 核心邏輯
 import datetime
 import os
 import json
-import re
 import pandas as pd
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.tools import tool
 from langgraph.graph import StateGraph, END
-from typing import TypedDict, List, Annotated, Dict, Optional
+from typing import TypedDict, List, Annotated, Dict, Optional, Literal
 import operator
+from pydantic import BaseModel, Field
 
 
 # --- 0. 數據持久化層 (Dual-DB Strategy) ---
@@ -398,6 +398,19 @@ Scenario 3:
 - Extract: mood="tired" or "drained", energy=3 (exhausted), note="Completed walk despite exhaustion"
 """
 
+# --- Supervisor Structured Output Schema ---
+class SupervisorDecision(BaseModel):
+    """Supervisor 路由決策的結構化輸出"""
+    reasoning: str = Field(
+        ...,
+        description="你的推理過程，遵循 3-step 分析：Step 1 (Analyze Intent) → Step 2 (Check Context) → Step 3 (Apply Rules)。簡潔地說明你的思考過程。"
+    )
+    decision: Literal["STRATEGIST", "HEALER", "STARTER", "ARCHITECT"] = Field(
+        ...,
+        description="最終路由決策，必須是以下之一：STRATEGIST, HEALER, STARTER, ARCHITECT"
+    )
+
+
 # Supervisor Router Prompt (Base Template - will be enhanced with context)
 SUPERVISOR_PROMPT_BASE = """
 You are the Supervisor. Your role is to analyze the conversation state and route to the best specialist agent.
@@ -462,20 +475,20 @@ You MUST follow this 3-step reasoning process:
 
 6. If user is planning/goal setting -> STRATEGIST
 
-**OUTPUT FORMAT:**
+**OUTPUT REQUIREMENTS:**
 
-First, output your reasoning briefly following the 3-step process above.
+You MUST provide your reasoning following the 3-step process above, and then make a clear decision.
 
-Then, on a new line, output **"FINAL DECISION: [AGENT_NAME]"** where [AGENT_NAME] is one of: STRATEGIST, HEALER, STARTER, or ARCHITECT.
+Your output will be automatically structured as JSON with two fields:
+- `reasoning`: Your 3-step analysis (Step 1: Analyze Intent → Step 2: Check Context → Step 3: Apply Rules)
+- `decision`: One of STRATEGIST, HEALER, STARTER, or ARCHITECT
 
-Example:
-```
-Step 1: User says "Maybe I can try" - this is a transition signal indicating readiness to act.
-Step 2: Current plan shows Today is set, so onboarding is complete.
-Step 3: Transition signals always route to STARTER per the rules.
+Example reasoning format:
+- Step 1: User says "Maybe I can try" - this is a transition signal indicating readiness to act.
+- Step 2: Current plan shows Vision and System are set, so onboarding is complete.
+- Step 3: Transition signals always route to STARTER per the rules.
 
-FINAL DECISION: STARTER
-```
+The system will automatically format your response as structured JSON. Just provide clear reasoning and decision.
 """
 
 
@@ -775,7 +788,7 @@ def create_mind_flow_brain(api_key: str, model: str = "gemini-2.0-flash", update
         
         return {"messages": [response], "next_step": "END"}
     
-    # Supervisor (Router) - State-Aware Routing
+    # Supervisor (Router) - State-Aware Routing with Structured Output
     def supervisor_node(state):
         # 檢查當前計劃狀態（State-Aware Routing）
         current_profile = load_user_profile()
@@ -813,73 +826,42 @@ def create_mind_flow_brain(api_key: str, model: str = "gemini-2.0-flash", update
         # 組合完整的 Supervisor Prompt
         supervisor_prompt = SUPERVISOR_PROMPT_BASE + context_check + priority_rule
         
+        # 使用結構化輸出：綁定 Pydantic 模型
+        structured_llm = llm.with_structured_output(SupervisorDecision)
+        
         messages = [SystemMessage(content=supervisor_prompt)] + state["messages"]
-        response_text = llm.invoke(messages).content
         
-        # 解析 Chain-of-Thought 輸出，提取 FINAL DECISION
-        # 查找 "FINAL DECISION: " 後面的 agent 名稱
-        selected_agent = None
-        final_decision_match = None
-        
-        # 嘗試多種可能的格式
-        patterns = [
-            r"FINAL DECISION:\s*(\w+)",
-            r"FINAL DECISION:\s*\[(\w+)\]",
-            r"FINAL\s+DECISION:\s*(\w+)",
-            r"decision:\s*(\w+)",
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, response_text, re.IGNORECASE)
-            if match:
-                final_decision_match = match.group(1).upper()
-                break
-        
-        # 如果找到 FINAL DECISION，使用它
-        if final_decision_match:
-            if "STRATEGIST" in final_decision_match:
+        try:
+            # 調用結構化輸出 LLM，直接獲得 SupervisorDecision 對象
+            decision_result: SupervisorDecision = structured_llm.invoke(messages)
+            
+            # 從結構化輸出中提取決策和推理過程
+            decision = decision_result.decision
+            reasoning_text = decision_result.reasoning
+            
+            # 將決策轉換為小寫的 agent 名稱（用於路由）
+            selected_agent = decision.lower()
+            
+        except Exception as e:
+            # 如果結構化輸出失敗，記錄錯誤並使用默認路由
+            print(f"⚠️ Supervisor 結構化輸出失敗: {e}")
+            reasoning_text = f"結構化輸出解析失敗: {str(e)}"
+            
+            # 根據計劃狀態決定默認路由
+            if not vision or vision is None or not system or system is None:
                 selected_agent = "strategist"
-            elif "HEALER" in final_decision_match:
-                selected_agent = "healer"
-            elif "STARTER" in final_decision_match:
-                selected_agent = "starter"
-            elif "ARCHITECT" in final_decision_match:
-                selected_agent = "architect"
-        
-        # 如果沒有找到 FINAL DECISION，回退到關鍵字匹配（向後兼容）
-        if selected_agent is None:
-            response_upper = response_text.upper()
-            if "STRATEGIST" in response_upper:
-                selected_agent = "strategist"
-            elif "HEALER" in response_upper:
-                selected_agent = "healer"
-            elif "STARTER" in response_upper:
-                selected_agent = "starter"
-            elif "ARCHITECT" in response_upper:
-                selected_agent = "architect"
             else:
-                # 如果 Vision 或 System 未設置，默認路由到 STRATEGIST
-                selected_agent = "strategist" if (not vision or vision is None or not system or system is None) else "healer"
+                selected_agent = "healer"
+            
+            decision = selected_agent.upper()
         
         # 調試信息：記錄路由決策和推理過程
-        debug_info = f"[🔀 Supervisor 路由到: {selected_agent.upper()}] (Vision: {'✓' if vision else '✗'}, System: {'✓' if system else '✗'})"
-        
-        # 提取推理過程（在 FINAL DECISION 之前的所有文本）
-        reasoning_text = response_text
-        if final_decision_match:
-            # 如果找到了 FINAL DECISION，提取它之前的所有文本作為推理過程
-            final_decision_pattern = r"(?i)FINAL\s+DECISION:"
-            match = re.search(final_decision_pattern, response_text)
-            if match:
-                reasoning_text = response_text[:match.start()].strip()
-        else:
-            # 如果沒有找到 FINAL DECISION，整個響應都是推理過程
-            reasoning_text = response_text.strip()
+        debug_info = f"[🔀 Supervisor 路由到: {decision}] (Vision: {'✓' if vision else '✗'}, System: {'✓' if system else '✗'})"
         
         return {
             "next_step": selected_agent, 
             "debug_info": debug_info,
-            "reasoning": reasoning_text  # 添加推理過程
+            "reasoning": reasoning_text
         }
     
     # Graph Definition

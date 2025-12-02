@@ -295,21 +295,51 @@ Architect logs: mood="accomplished", energy=3, note="Got into push-up position"
 ## 🏗️ Architecture & Tech Stack
 
 ```mermaid
-graph TD
-    A[User Input] --> B[Input Guardrails]
-    B --> C[Supervisor Router]
-    C --> D{State-Aware Routing}
-    D -->|Planning| E[Strategist]
-    D -->|Emotional| F[Healer]
-    D -->|Action| G[Starter]
-    D -->|Completion| H[Architect]
-    E --> I[Tool: set_full_plan]
-    H --> J[Tool: save_journal_entry]
-    I --> K[Output Guardrails]
-    J --> K
-    F --> K
-    G --> K
-    K --> L[UI Display]
+graph LR
+    User([👤 User Input]) --> Supervisor{🧠 Supervisor}
+
+    %% 修正點：讓記憶體區塊內部「由上往下」排列，抵抗左右拉扯
+    subgraph Memory [💾 Dual-Layer Memory]
+        direction TB
+        Profile[(JSON Profile)]
+        Logs[(CSV Logs)]
+    end
+
+    %% 階段一
+    subgraph Phase1 [Phase 1: Setup]
+        Strategist[🎯 Strategist]
+        Strategist -->|Sets| Profile
+    end
+
+    %% 階段二
+    subgraph Phase2 [Phase 2: Daily Loop]
+        direction LR
+        Healer[🧘‍♀️ Healer]
+        Starter[⚡️ Starter]
+        Architect[🏗 Architect]
+        
+        Healer -.->|Recovered| Starter
+        Starter -->|Action| Architect
+        
+        %% 資料流向
+        Profile -.->|Reads| Starter
+        Architect -->|Writes| Logs
+    end
+
+    %% 總管分流
+    Supervisor -->|Plan| Strategist
+    Supervisor -->|Emotion| Healer
+    Supervisor -->|Action| Starter
+    Supervisor -->|Log| Architect
+
+    %% 樣式
+    classDef db fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef agent fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    
+    class Profile,Logs db;
+    class Strategist,Healer,Starter,Architect agent;
+    class Supervisor decision;
 ```
 
 ### Technology Stack

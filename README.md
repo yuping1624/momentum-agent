@@ -1,5 +1,7 @@
 # 🚀 Momentum: AI-Powered Personal OS for Atomic Habits
 
+[![Momentum Demo Video](https://img.youtube.com/vi/p5U2TN7HFlc/0.jpg)](https://www.youtube.com/watch?v=p5U2TN7HFlc)
+
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://momentum-agent.streamlit.app/)
 
 [![Powered by Gemini](https://img.shields.io/badge/Powered%20by-Gemini%202.0-blue)](https://ai.google.dev/)
@@ -298,20 +300,20 @@ Architect logs: mood="accomplished", energy=3, note="Got into push-up position"
 graph LR
     User([👤 User Input]) --> Supervisor{🧠 Supervisor}
 
-    %% 修正點：讓記憶體區塊內部「由上往下」排列，抵抗左右拉扯
+    %% Fix: Arrange memory block internally from top to bottom to resist left-right pulling
     subgraph Memory [💾 Dual-Layer Memory]
         direction TB
         Profile[(JSON Profile)]
         Logs[(CSV Logs)]
     end
 
-    %% 階段一
+    %% Phase 1
     subgraph Phase1 [Phase 1: Setup]
         Strategist[🎯 Strategist]
         Strategist -->|Sets| Profile
     end
 
-    %% 階段二
+    %% Phase 2
     subgraph Phase2 [Phase 2: Daily Loop]
         direction LR
         Healer[🧘‍♀️ Healer]
@@ -321,18 +323,18 @@ graph LR
         Healer -.->|Recovered| Starter
         Starter -->|Action| Architect
         
-        %% 資料流向
+        %% Data flow
         Profile -.->|Reads| Starter
         Architect -->|Writes| Logs
     end
 
-    %% 總管分流
+    %% Supervisor routing
     Supervisor -->|Plan| Strategist
     Supervisor -->|Emotion| Healer
     Supervisor -->|Action| Starter
     Supervisor -->|Log| Architect
 
-    %% 樣式
+    %% Styles
     classDef db fill:#f9f,stroke:#333,stroke-width:2px;
     classDef agent fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
     classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
@@ -344,7 +346,7 @@ graph LR
 
 ### Technology Stack
 
-- **LLM:** Google Gemini 2.0 Flash
+- **LLM: ⚡️Google Gemini 2.0 Flash⚡️**
 - **Orchestration:** LangGraph (State Machine)
 - **Routing:** Pydantic Structured Output (JSON Mode) for reliable decision making
 - **Memory:** Hybrid Architecture (JSON for User Profile State + CSV for Event Logging)
@@ -360,6 +362,15 @@ graph LR
 2. Create agent node function
 3. Add routing logic to Supervisor
 4. Update Supervisor prompt with agent description
+
+## 🚀 Roadmap & Future Improvements
+
+While this MVP demonstrates the core agentic workflow using Streamlit and CSV, the production roadmap includes:
+
+- **Enhanced Long-term Memory (RAG):** Migrating from CSV logs to a Vector Database (ChromaDB/Pinecone) for semantic retrieval of past user journals over long periods.
+- **Backend Decoupling:** Separating the agent logic into a FastAPI microservice for better scalability.
+- **Production Deployment:** Containerizing the application using Docker and deploying to Google Cloud Run.
+- **Mobile Integration:** Integrating with messaging platforms (Line/WhatsApp) for easier on-the-go logging.
 
 ## 📝 License
 

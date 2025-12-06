@@ -175,7 +175,7 @@ GOOGLE_API_KEY = "your_gemini_api_key_here"
 
 ### Model Selection
 
-The app uses `gemini-2.0-flash` by default. You can modify this in:
+The app uses `gemini-2.5-flash-lite` by default. You can modify this in:
 - `app.py`: Line 577 (brain creation)
 - `app.py`: Line 623, 630 (greeting functions)
 

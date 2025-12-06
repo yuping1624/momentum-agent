@@ -102,7 +102,7 @@ def main():
         logger.write("Type 'quit' or 'exit' to exit\n")
         
         # Create brain (not using journal_db, as terminal test doesn't need persistence)
-        app = create_mind_flow_brain(api_key=api_key, model="gemini-2.0-flash")
+        app = create_mind_flow_brain(api_key=api_key, model="gemini-2.5-flash-lite")
         
         # Initialize conversation - decide which Agent to use based on user_profile status
         messages = []
@@ -115,7 +115,7 @@ def main():
             logger.write("🚀 Starter is preparing greeting (returning user mode)...\n")
             greeting_response = get_returning_user_greeting(
                 api_key=api_key,
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash-lite",
                 plan_state=user_profile,
                 agent_type="starter"  # or "healer" for care mode
             )
@@ -124,7 +124,7 @@ def main():
             logger.write("🧠 Strategist is preparing greeting...\n")
             greeting_response = get_strategist_greeting(
                 api_key=api_key,
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash-lite",
                 plan_state=user_profile
             )
         

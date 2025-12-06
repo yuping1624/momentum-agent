@@ -597,7 +597,7 @@ class AgentState(TypedDict, total=False):
     reasoning: str  # Reasoning process: record supervisor's Chain-of-Thought reasoning (optional)
 
 
-def get_returning_user_greeting(api_key: str, model: str = "gemini-2.0-flash", plan_state=None, agent_type="starter"):
+def get_returning_user_greeting(api_key: str, model: str = "gemini-2.5-flash-lite", plan_state=None, agent_type="starter"):
     """
     Get initial greeting for returning user (onboarding completed)
     Directly route to Starter (action) or Healer (care)
@@ -665,7 +665,7 @@ Remember: You're here to make them feel 100% understood. Don't offer solutions y
     return response
 
 
-def get_strategist_greeting(api_key: str, model: str = "gemini-2.0-flash", plan_state=None):
+def get_strategist_greeting(api_key: str, model: str = "gemini-2.5-flash-lite", plan_state=None):
     """
     Get Strategist's initial greeting (Onboarding)
     Decide what to ask based on current_plan status
@@ -768,7 +768,7 @@ Remember: Your role is to help them execute, not to replan (unless they ask).
     return response
 
 
-def create_mind_flow_brain(api_key: str, model: str = "gemini-2.0-flash", update_callback=None, plan_callback=None):
+def create_mind_flow_brain(api_key: str, model: str = "gemini-2.5-flash-lite", update_callback=None, plan_callback=None):
     """
     Create Momentum brain (LangGraph application)
 

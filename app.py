@@ -662,7 +662,7 @@ def update_journal(mood: str, energy: int, note: str):
 if "mind_flow_app" not in st.session_state:
     st.session_state.mind_flow_app = create_mind_flow_brain(
         api_key=api_key,
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash-lite",
         update_callback=update_journal
     )
 
@@ -708,7 +708,7 @@ with tab_chat:
             with st.spinner("🚀 Starter is preparing greeting (returning user mode)..."):
                 greeting_response = get_returning_user_greeting(
                     api_key=api_key,
-                    model="gemini-2.0-flash",
+                    model="gemini-2.5-flash-lite",
                     plan_state=user_profile,
                     agent_type="starter"  # or "healer" for care mode
                 )
@@ -717,7 +717,7 @@ with tab_chat:
             with st.spinner("🧠 Strategist is preparing greeting..."):
                 greeting_response = get_strategist_greeting(
                     api_key=api_key,
-                    model="gemini-2.0-flash",
+                    model="gemini-2.5-flash-lite",
                     plan_state=user_profile
                 )
 
